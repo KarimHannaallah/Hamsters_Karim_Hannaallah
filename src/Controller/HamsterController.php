@@ -162,5 +162,36 @@ final class HamsterController extends AbstractController
             }
         }
     }
+
+    #[Route('/api/hamsters/{id}/sell', name: 'hamsters_sell', methods: ['POST'])]
+    public function sell(Hamster $hamster, UserRepository $userRepo, EntityManagerInterface $em ): JsonResponse {
+
+        $securityUser = $this->getUser();
+        if (!$securityUser) {
+            return $this->json(['error' => 'Utilisateur non authentifié'], 401);
+        }
+
+        $user = $userRepo->findOneBy(['email' => $securityUser->getUserIdentifier()]);
+        if (!$user) {
+            return $this->json(['error' => 'Utilisateur introuvable'], 500);
+        }
+
+        if ($hamster->getOwner()->getId() !== $user->getId()) {
+            return $this->json(['error' => 'Vous ne pouvez vendre que vos propres hamsters'], 403);
+        }
+
+        if (!$hamster->isActive()) {
+            return $this->json(['error' => 'Ce hamster n’est pas actif'], 400);
+        }
+
+        $user->setGold($user->getGold() + 300);
+        $em->remove($hamster);
+
+        $this->ageAllHamstersOfUser($user);
+
+        $em->flush();
+
+        return $this->json(['message' => 'Hamster vendu avec succès', 'gold' => $user->getGold(),], Response::HTTP_OK);
+    }
     
 }
